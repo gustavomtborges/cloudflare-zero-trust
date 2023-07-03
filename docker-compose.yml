@@ -1,13 +1,13 @@
 version: "3.8"
 services:
-  cloudflared:
-    image: cloudflare/cloudflared
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
-    networks:
-      - proxy
+  # cloudflared:
+  #   image: cloudflare/cloudflared
+  #   restart: unless-stopped
+  #   command: tunnel --no-autoupdate run
+  #   environment:
+  #     - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+  #   networks:
+  #     - proxy
 
   traefik:
     image: traefik
@@ -17,17 +17,32 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--certificatesresolvers.myresolver.acme.dnschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.dnschallenge.provider=cloudflare"
+    environment:
+      - CF_API_EMAIL=${CF_API_EMAIL}
+      - CF_API_KEY=${CF_API_KEY}
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     networks:
       - proxy
+    ports:
+      - 80:80
+      - 443:443
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.traefik.rule=Host(`traefik.gustavomtborges.com`)"
+      - "traefik.http.routers.traefik.entryPoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=myresolver"
+      - "traefik.http.routers.traefik.tls.domains[0].main=local.gustavomtborges.com"
+      - "traefik.http.routers.traefik.tls.domains[0].sans=*.local.gustavomtborges.com"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.local.gustavomtborges.com`)"
       - "traefik.http.routers.traefik.service=api@internal"
 
 networks:
